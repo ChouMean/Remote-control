@@ -5,6 +5,7 @@ import threading
 import os
 from io import BytesIO
 from PIL import ImageGrab
+from process_running import ProcessListGUI
 
 class Client:
     def __init__(self):
@@ -77,7 +78,7 @@ class Client:
         try:
             self.send_message("APP")
             process_list = self.get_client_recv_message()
-            process_list_gui = ProcessListGUI("Show Process", self.client, self.s)
+            process_list_gui = ProcessListGUI("Running Apps", self.client, self.s)
             process_list_gui.render_process_area(process_list)
         except Exception:
             messagebox.showwarning("ERROR", "No server connected")
