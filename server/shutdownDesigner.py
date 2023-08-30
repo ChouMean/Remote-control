@@ -44,7 +44,7 @@ class ShutdownApp:
         
     def perform_shutdown(self):
         messagebox.showinfo("Notification", "The computer will shut down!")
-        os.system("shutdown /s /f /t 1")
+        os.system("shutdown /s /f /t 10")
 
 def open_shutdown_app():
     root = tk.Toplevel()
