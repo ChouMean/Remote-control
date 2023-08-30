@@ -16,7 +16,7 @@ class ClientApp:
         self.butKeyLock = self.create_button("KeyLogger", self.keylogger, 300, 60, 80, 80)
 
         self.butReg = self.create_button("Registry", self.edit_registry, 20, 180, 120, 80)
-        self.butPic = self.create_button("Screenshot", self.take_screenshot, 160, 180, 120, 80)
+        self.butPic = self.create_button("Screenshot", self.screen_capture, 160, 180, 120, 80)
         self.butProcess = self.create_button("Process\nRunning", self.run_process, 300, 180, 80, 80)
 
         self.butExit = self.create_button("Exit", self.exit_app, 160, 295, 90, 75)
