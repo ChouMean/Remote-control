@@ -1,9 +1,5 @@
-import socket
-import os
-from io import BytesIO
-from PIL import Image, ImageTk
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk
 
 class PictureViewer(tk.Toplevel):  
     def __init__(self, master=None): 

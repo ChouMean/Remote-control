@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
 from registryDesigner import RegistryEditor
-import base64
 
 class Registry(RegistryEditor):
     def __init__(self, nw, nr, ns):

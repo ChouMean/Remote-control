@@ -1,7 +1,4 @@
-import tkinter as tk
 from tkinter import filedialog
-import socket
-import io
 from io import BytesIO
 from PIL import Image, ImageTk
 from picDesigner import PictureViewer

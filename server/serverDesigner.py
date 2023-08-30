@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import Button
 
 class ServerApp:
     def __init__(self, root):

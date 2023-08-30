@@ -1,5 +1,4 @@
 from listDesigner import ApplicationList
-import time
 import threading
 from Start import StartFunc
 from kill import Kill

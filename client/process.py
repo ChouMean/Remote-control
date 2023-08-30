@@ -1,5 +1,4 @@
 from processDesigner import ProcessViewer
-import time
 import threading
 from kill import Kill
 from Start import StartFunc

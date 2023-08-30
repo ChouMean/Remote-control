@@ -1,9 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
 import socket
-from threading import Thread
-import subprocess
-from io import StringIO
 from ClientDesigner import ClientApp
 from list import ListApp
 from pic import PicApp
