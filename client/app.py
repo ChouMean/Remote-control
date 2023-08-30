@@ -1,4 +1,4 @@
-from listDesigner import ApplicationList
+from appDesigner import ApplicationList
 import threading
 from Start import StartFunc
 from kill import Kill

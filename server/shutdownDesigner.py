@@ -29,7 +29,7 @@ class ShutdownApp:
         self.countdown_thread.start()
         
     def update_countdown(self):
-        seconds_left = 5
+        seconds_left = 10
         
         while seconds_left > 0:
             hours = seconds_left // 3600

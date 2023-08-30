@@ -31,7 +31,7 @@ class ProcessViewer(tk.Toplevel):
                 self.listView1.column(col_name, anchor="center")
         self.listView1.place(x=24, y=74, width=320, height=162)
 
-        self.button4 = ttk.Button(self, text="Xóa", command=self.button4_Click)
+        self.button4 = ttk.Button(self, text="Clear", command=self.button4_Click)
         self.button4.place(x=181, y=12, width=74, height=47)
 
         self.protocol("WM_DELETE_WINDOW", self.process_closing)
