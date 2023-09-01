@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 import socket
 from ClientDesigner import ClientApp
-from list import ListApp
+from app import ListApp
 from pic import PicApp
 from process import ListProcess
 from keylogger import Key
