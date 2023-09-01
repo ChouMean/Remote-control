@@ -367,7 +367,6 @@ class Server(ServerApp):
 
     def start_server(self):
         get_ip = socket.gethostbyname(socket.gethostname())
-        print(get_ip)
         ip = (get_ip, 3008)
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind(ip)
@@ -414,6 +413,7 @@ def run_as_admin():
 
 if __name__ == "__main__":
     if run_as_admin():
+        print(socket.gethostbyname(socket.gethostname()))
         root = tk.Tk()
         app = Server(root)
         root.mainloop()
