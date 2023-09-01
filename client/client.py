@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox
 import socket
-from ClientDesigner import ClientApp
+from clientDesigner import ClientApp
 from app import ListApp
 from pic import PicApp
 from process import ListProcess
@@ -22,7 +22,7 @@ class Client(ClientApp):
             ip = self.txtIP.get()
             self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             print(self.client)
-            self.client.connect((ip, 5656))
+            self.client.connect((ip, 3008))
             self.ns = self.client.makefile("rb")
             self.nr = self.client.makefile("r")
             self.nw = self.client.makefile("w")

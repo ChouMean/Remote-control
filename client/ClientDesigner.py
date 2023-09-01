@@ -1,3 +1,5 @@
+import socket
+
 import tkinter as tk
 
 class ClientApp:
@@ -8,7 +10,8 @@ class ClientApp:
 
         self.custom_font = ("Helvetica", 9)
 
-        self.txtIP = self.create_entry("127.0.0.1", 20, 20, 260, 25)
+        get_ip = socket.gethostbyname(socket.gethostname())
+        self.txtIP = self.create_entry(get_ip, 20, 20, 260, 25)
         self.butConnect = self.create_button("Connect", self.connect_server, 300, 20, 80, 25)
 
         self.butApp = self.create_button("App Running", self.run_app, 20, 60, 120, 80)

@@ -366,7 +366,8 @@ class Server(ServerApp):
                 break
 
     def start_server(self):
-        ip = ("0.0.0.0", 5656)
+        get_ip = socket.gethostbyname(socket.gethostname())
+        ip = (get_ip, 3008)
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind(ip)
         self.server.listen(100)
