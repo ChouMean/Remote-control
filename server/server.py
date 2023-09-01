@@ -412,8 +412,8 @@ def run_as_admin():
         return False
 
 if __name__ == "__main__":
+    print(socket.gethostbyname(socket.gethostname()))
     if run_as_admin():
-        print(socket.gethostbyname(socket.gethostname()))
         root = tk.Tk()
         app = Server(root)
         root.mainloop()
