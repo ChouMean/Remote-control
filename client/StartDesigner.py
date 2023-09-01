@@ -9,7 +9,7 @@ class Start(tk.Toplevel):
 
         self.configure(bg="white")
         
-        self.label = ttk.Label(self, text="Enter ID:")
+        self.label = ttk.Label(self, text="Enter app name:")
         self.label.pack(pady=10)
         
         self.txtID = ttk.Entry(self)
