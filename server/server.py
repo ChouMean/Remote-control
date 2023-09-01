@@ -11,7 +11,6 @@ import psutil
 from serverDesigner import ServerApp
 from keylog import Keylogger
 import tkinter as tk
-import keyboard
 from shutdownDesigner import open_shutdown_app
 import tkinter as tk
 
